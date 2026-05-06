@@ -63,13 +63,13 @@ tang manh, tich luy, di ngang, hoac sup giam. HMM mo hinh hoa chinh xac dieu nay
 Hidden:   Uptrend -> Uptrend -> Sideways -> Downtrend -> Downtrend -> ...
                |          |          |            |             |
 Observed:   [obs]      [obs]      [obs]        [obs]         [obs]
-                     (10 nhan to da roi rac hoa)
+                     (gia, khoi luong, loi suat da roi rac hoa)
 ```
 
 ### Roi rac hoa quan sat
 
-10 nhan to lien tuc duoc roi rac hoa thanh **ky hieu quan sat roi rac** (M ky hieu)
-qua K-Means clustering hoac chia theo quantile:
+Cac feature lien tuc (return, volume, momentum...) duoc roi rac hoa thanh
+**ky hieu quan sat roi rac** (M ky hieu) qua K-Means hoac chia theo quantile:
 
 - Moi ngay giao dich duoc anh xa thanh 1 ky hieu `o_t` trong {0, 1, ..., M-1}
 - HMM hoc phan phoi phat sinh `B[i,k] = P(obs=k | state=i)` cho tung trang thai
@@ -152,12 +152,11 @@ Chia train/test theo thoi gian (80/20):
 
 ```
 .
-|-- crawl_vn_data.ipynb          # Notebook crawl & tinh nhan to
+|-- crawl_vn_data.ipynb          # Notebook crawl du lieu
 |-- weather_hmm.ipynb            # Notebook HMM du doan
 |-- FPT.csv                      # Gia OHLCV (1,369 phien)
 |-- FPT_balance_sheet.csv        # Bang can doi ke toan (theo quy)
 |-- FPT_income_statement.csv     # Bao cao KQKD (theo quy)
-|-- FPT_factors.csv              # 10 nhan to (theo ngay)
 |-- VNINDEX.csv                  # VN-Index tham chieu (1,369 phien)
 `-- README.md
 ```
@@ -172,3 +171,68 @@ jupyter notebook weather_hmm.ipynb     # Buoc 2: huan luyen & du doan
 
 Notebook crawl tu dong bo qua neu file CSV da ton tai.
 HMM duoc implement tu dau bang NumPy -- khong can cai `hmmlearn`.
+
+
+# Hidden Markov Model Understanding
+Dưới đây là giải thích chi tiết về **Mô hình Markov Ẩn (Hidden Markov Model - HMM)** và các công thức chính dựa trên lý thuyết của Jurafsky & Martin.
+
+---
+
+## 1. Các thành phần chính của HMM
+
+Một mô hình Markov ẩn được định nghĩa bởi các thành phần sau:
+* **$Q = q_1, q_2, ..., q_N$**: Tập hợp các trạng thái ẩn (ví dụ: thời tiết thực tế).
+* **$A = a_{11}, ..., a_{ij}, ..., a_{NN}$**: Ma trận xác suất chuyển trạng thái, trong đó $a_{ij}$ là xác suất chuyển từ trạng thái $i$ sang trạng thái $j$ (với $\sum_{j=1}^N a_{ij} = 1$ cho mỗi hàng).
+* **$B = b_j(o_t)$**: Tập hợp các xác suất phát xạ (observation likelihoods hoặc emission probabilities), biểu thị xác suất một quan sát $o_t$ được tạo ra từ trạng thái $q_j$.
+* **$\pi = \pi_1, \pi_2, ..., \pi_N$**: Phân phối xác suất ban đầu của các trạng thái.
+* **$O = o_1, o_2, ..., o_T$**: Chuỗi các quan sát.
+
+---
+
+## 2. Likelihood là gì?
+
+Trong bài toán HMM, **Likelihood** ($P(O|\lambda)$) là **xác suất để mô hình $\lambda$ tạo ra một chuỗi quan sát $O$ cho trước**.
+
+Khác với chuỗi Markov thông thường (nơi trạng thái có thể quan sát trực tiếp), trong HMM, chúng ta không biết chuỗi trạng thái ẩn nào đã sinh ra chuỗi quan sát. Vì vậy, để tính toán likelihood, ta phải tính tổng xác suất trên toàn bộ các chuỗi trạng thái ẩn có thể xảy ra:
+
+$$P(O) = \sum_{Q} P(O, Q) = \sum_{Q} P(O|Q)P(Q)$$
+
+---
+
+## 3. Các công thức chính trong HMM
+
+### A. Xác suất của chuỗi quan sát với chuỗi trạng thái ẩn cụ thể
+Giả sử có một chuỗi trạng thái ẩn $Q = q_1, q_2, ..., q_T$ và chuỗi quan sát $O = o_1, o_2, ..., o_T$, xác suất của chuỗi quan sát được tính bằng tích của các xác suất phát xạ:
+
+$$P(O|Q) = \prod_{i=1}^{T} P(o_i|q_i)$$
+
+### B. Xác suất đồng thời (Joint Probability)
+Xác suất đồng thời của chuỗi quan sát $O$ và chuỗi trạng thái ẩn $Q$ được tính bằng:
+
+$$P(O,Q) = P(O|Q) \times P(Q) = \prod_{i=1}^{T} P(o_i|q_i) \times \prod_{i=1}^{T} P(q_i|q_{i-1})$$
+
+### C. Thuật toán Forward (Tính Likelihood)
+Vì số lượng chuỗi trạng thái ẩn là cực kỳ lớn ($N^T$), ta sử dụng quy hoạch động (thuật toán Forward) để tính $P(O|\lambda)$ một cách hiệu quả với độ phức tạp là $O(N^2T)$.
+
+Công thức tính giá trị trong trellis $\alpha_t(j)$ là:
+
+$$\alpha_t(j) = \sum_{i=1}^{N} \alpha_{t-1}(i) a_{ij} b_j(o_t)$$
+
+Trong đó:
+* $\alpha_{t-1}(i)$: Xác suất của đường dẫn từ bước trước.
+* $a_{ij}$: Xác suất chuyển trạng thái.
+* $b_j(o_t)$: Xác suất phát xạ của trạng thái hiện tại.
+
+### D. Thuật toán Viterbi (Giải mã trạng thái)
+Thuật toán Viterbi giúp tìm chuỗi trạng thái ẩn $Q$ có xác suất cao nhất sinh ra chuỗi quan sát $O$. Công thức tương tự như thuật toán Forward, nhưng thay phép cộng ($\sum$) bằng phép tìm giá trị lớn nhất ($\max$):
+
+$$\nu_t(j) = \max_{i=1}^{N} \nu_{t-1}(i) a_{ij} b_j(o_t)$$
+
+### E. Thuật toán Backward (Sử dụng trong huấn luyện)
+Xác suất Backward $\beta_t(i)$ biểu diễn xác suất nhìn thấy các quan sát từ thời điểm $t+1$ đến cuối, với điều kiện hệ thống đang ở trạng thái $i$ tại thời điểm $t$:
+
+$$\beta_t(i) = \sum_{j=1}^{N} a_{ij} b_j(o_{t+1}) \beta_{t+1}(j)$$
+
+---
+
+*Tham khảo thêm chi tiết tại tài liệu [Speech and Language Processing](https://web.stanford.edu/~jurafsky/slp3/A.pdf).*
